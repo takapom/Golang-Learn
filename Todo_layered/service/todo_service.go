@@ -1,3 +1,4 @@
+// サービス層は「どうやってデータを保存／取得しているか」を知らずに、ただ「リポジトリに任せる」だけにしたい。
 package service
 
 import (
@@ -24,6 +25,7 @@ type todoService struct {
 
 // todoServieのrepoを明確化する
 func NewTodoService(repo repository.TodoRepository) TodoService {
+	return &todoService{repo: repo}
 }
 
 func (s *todoService) CreateTodo(title, description string) (*model.Todo, error) {
@@ -38,8 +40,39 @@ func (s *todoService) CreateTodo(title, description string) (*model.Todo, error)
 	return todo, nil
 }
 
-func GetTodo
+func (s *todoService) GetTodos() ([]model.Todo, error) {
+	return s.repo.GetAll()
+}
 
 func (s *todoService) GetTodo(id uint) (*model.Todo, error) {
-	return s.GetByID(id)
+	return s.repo.GetByID(id)
+}
+
+// Todoの更新処理
+func (s *todoService) UpdateTodo(id uint, title, description string, completed bool) (*model.Todo, error) {
+	// まずは該当するidのタスク取得
+	todo, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	//取得したidを更新する処理
+	if title != "" {
+		todo.Title = title
+	}
+	if description != "" {
+		todo.Description = description
+	}
+	todo.Completed = completed
+
+	//上の情報をリポジトリ層に渡す
+	if err := s.repo.Update(todo); err != nil {
+		return nil, err
+	}
+
+	return todo, nil
+}
+
+func (s *todoService) DeleteTodo(id uint) error {
+	return s.repo.Delete(id)
 }
