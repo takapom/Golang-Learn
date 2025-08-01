@@ -1,0 +1,27 @@
+openapi: 3.0.3
+info:
+  title: Car API
+  version: 1.0.0
+paths:
+  /cars:
+    get:
+      summary: Get all cars
+      operationId: GetCars
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Car"
+components:
+  schemas:
+    Car:
+      type: object
+      properties:
+        id:
+          type: string
+        model:
+          type: string

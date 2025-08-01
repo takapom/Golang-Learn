@@ -1,86 +1,65 @@
+// package main
+
+// import (
+// 	"gorm.io/driver/postgres"
+// 	"gorm.io/gorm"
+// )
+
+//	func main() {
+//		dsn := "host=localhost user=postgres password=secret dbname=app port=5432 sslmode=disable"
+//		db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+//		if err != nil {
+//			panic(err)
+//		}
+//		db.AutoMigrate(&model.Product{})
+//	}
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"log"
-
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"net/http"
+	"time"
 )
 
-// モデル定義：User と Product を例に
-type User struct {
-	ID    uint `gorm:"primaryKey"`
-	Name  string
-	Email string
-	Age   int
-	// Products []Product `gorm:"foreignKey:OwnerID"` // 関連付けの練習をする場合
-}
-
-type Product struct {
-	ID      uint `gorm:"primaryKey"`
-	Code    string
-	Price   int
-	OwnerID uint
-}
-
 func main() {
+	const (
+		totalRequests = 10000                                                                                           // 総リクエスト数
+		concurrency   = 500                                                                                             // 並列数（ここを増やす）
+		dataSize      = 10 * 1024 * 1024                                                                                // 10MBのデータ
+		url           = "https://sites.google.com/stu.yamato-u.ac.jp/2025test23/%E3%83%9B%E3%83%BC%E3%83%A0?authuser=0" // ← テスト用API
+	)
 
-	db, err := gorm.Open(sqlite.Open("example.db"), &gorm.Config{})
-	if err != nil {
-		log.Fatalf("failed to connect database: %v", err)
+	// 10MBのダミーデータを作成
+	data := bytes.Repeat([]byte("A"), dataSize)
+
+	sem := make(chan struct{}, concurrency)
+	done := make(chan struct{})
+	start := time.Now()
+
+	for i := 0; i < totalRequests; i++ {
+		sem <- struct{}{}
+		go func(i int) {
+			defer func() {
+				<-sem
+				done <- struct{}{}
+			}()
+
+			resp, err := http.Post(url, "application/octet-stream", bytes.NewReader(data))
+			if err != nil {
+				fmt.Printf("❌ Request %d failed: %v\n", i, err)
+				return
+			}
+			resp.Body.Close()
+			fmt.Printf("✅ Sent request %d\n", i)
+		}(i)
 	}
 
-	// 2. マイグレーション
-	if err := db.AutoMigrate(&User{}, &Product{}); err != nil {
-		log.Fatalf("failed to migrate database: %v", err)
+	// 全てのリクエストの完了を待つ
+	for i := 0; i < totalRequests; i++ {
+		<-done
 	}
 
-	// 3. シード済みかカウントで確認
-	var userCount int64
-	db.Model(&User{}).Count(&userCount)
-	if userCount == 0 {
-		// User テーブルが空ならダミーデータを投入
-		users := []User{
-			{Name: "Alice", Email: "alice@example.com", Age: 30},
-			{Name: "Bob", Email: "bob@example.com", Age: 25},
-			{Name: "Carol", Email: "carol@example.com", Age: 35},
-		}
-		if err := db.Create(&users).Error; err != nil {
-			log.Fatalf("failed to seed users: %v", err)
-		}
-
-		products := []Product{
-			{Code: "P001", Price: 1000, OwnerID: 1},
-			{Code: "P002", Price: 2000, OwnerID: 2},
-			{Code: "P003", Price: 1500, OwnerID: 1},
-		}
-		if err := db.Create(&products).Error; err != nil {
-			log.Fatalf("failed to seed products: %v", err)
-		}
-
-		fmt.Println("✅ ダミーデータを投入しました")
-	} else {
-		fmt.Println("ℹ️ 既にシード済み（User 件数:", userCount, "件）")
-	}
-
-	//全ユーザー取得からの表示
-	var allUsers []User
-	db.Find(&allUsers)
-	fmt.Println("===全ユーザー===")
-	for _, u := range allUsers {
-		fmt.Printf("ID:%d  Name:%s  Age:%d\n", u.ID, u.Name, u.Age)
-	}
-	fmt.Printf("===終了===")
-
-	//条件検索
-	var older []User
-	db.Where("age >= ?", 30).Find(&older)
-	fmt.Println("\n=== Age >= 30 ===")
-	for _, u := range older {
-		fmt.Printf("%s (Age %d)\n", u.Name, u.Age)
-	}
-
-	//ソート処理
-
+	elapsed := time.Since(start)
+	fmt.Printf("🎉 Completed %d POST requests in %s\n", totalRequests, elapsed)
 }

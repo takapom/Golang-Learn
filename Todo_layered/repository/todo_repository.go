@@ -7,6 +7,7 @@ import (
 	"gorm.io/gorm"
 )
 
+//リポジトリ層を使うために
 func NewTodoRepository(db *gorm.DB) TodoRepository {
 	return &todoRepository{db: db}
 }

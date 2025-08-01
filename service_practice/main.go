@@ -1,31 +1,37 @@
 package main
 
 import (
-	"go_sample/model"
+	"encoding/json"
+	"go_sample/api"
 	"log"
+	"net/http"
 
-	"github.com/gin-gonic/gin"
-	"github.com/jinzhu/gorm/dialects/sqlite"
-	"gorm.io/driver/sqlite"
-	"gorm.io/gorm"
+	"github.com/go-chi/chi/v5"
 )
 
+type MyServer struct{}
+
+// 実際のデータを返す処理をここで書く
+func (s *MyServer) GetCars(w http.ResponseWriter, r *http.Request) {
+	cars := []api.Car{
+		{Id: ptr("1"), Model: ptr("Civic")},
+		{Id: ptr("2"), Model: ptr("Corolla")},
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(cars)
+}
+
+// ヘルパー関数：stringをポインタに変換
+func ptr(s string) *string {
+	return &s
+}
+
 func main() {
-	db, err := gorm.Open(sqlite.Open("test.db"), &gorm.Config)
-	if err != nil {
-		log.Fatal(err)
-	}
-	db.AutoMigrate(&model.User{})
+	r := chi.NewRouter()
+	server := &MyServer{}
+	handler := api.HandlerFromMux(server, r)
 
-	//各層のレイヤーの組み立て
-	userRepo := repository.
-	userSvc := service.
-	userH := handler.
-
-	//ルーティング設定
-	r := gin.Default()
-	users := r.Group("/users")
-	{
-		users.GET("/:id", )
-	}
+	log.Println("Server started at :8080")
+	http.ListenAndServe(":8080", handler)
 }
